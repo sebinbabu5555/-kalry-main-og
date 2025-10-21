@@ -1,18 +1,22 @@
-import supabase from '../lib/supabase'; // ✅ Make sure this path is correct
+import supabase from '../lib/supabase';
+import axios from 'axios';
+import Constants from 'expo-constants';
 
-/* ======================================================
-   🥗 FOOD LOG API FUNCTIONS
-   ====================================================== */
+// -------------------- Edge Function URLs --------------------
+const BASE_URL = 'https://wdkraevjbcguvwpxscqf.functions.supabase.co';
+const ANALYZE_FOOD_FUNCTION = `${BASE_URL}/analyze-food`;
 
-/**
- * Fetch all food logs for a specific user.
- */
+// Edge function key (server-only) from env
+const EDGE_KEY = Constants.expoConfig.extra.supabaseServiceRoleKey;
+
+// -------------------- USER FOOD LOGS (SDK, RLS safe) --------------------
+
 export const getFoodLogs = async (userId) => {
   try {
     if (!userId) throw new Error('userId is required');
 
     const { data, error } = await supabase
-      .from('user_food_logs') // ✅ use correct table name
+      .from('user_food_logs')
       .select('*')
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
@@ -25,15 +29,12 @@ export const getFoodLogs = async (userId) => {
   }
 };
 
-/**
- * Create a new food log entry.
- */
 export const createFoodLog = async (foodLog) => {
   try {
     if (!foodLog?.user_id) throw new Error('user_id is required');
 
     const { data, error } = await supabase
-      .from('user_food_logs') // ✅ correct table
+      .from('user_food_logs')
       .insert([{ ...foodLog, created_at: new Date().toISOString() }])
       .select('*')
       .single();
@@ -46,15 +47,12 @@ export const createFoodLog = async (foodLog) => {
   }
 };
 
-/**
- * Update a specific food log by ID.
- */
 export const updateFoodLog = async (id, updates) => {
   try {
-    if (!id) throw new Error('id is required for update');
+    if (!id) throw new Error('id is required');
 
     const { data, error } = await supabase
-      .from('user_food_logs') // ✅ correct table
+      .from('user_food_logs')
       .update(updates)
       .eq('id', id)
       .select('*')
@@ -68,15 +66,12 @@ export const updateFoodLog = async (id, updates) => {
   }
 };
 
-/**
- * Delete a specific food log by ID.
- */
 export const deleteFoodLog = async (id) => {
   try {
-    if (!id) throw new Error('id is required for delete');
+    if (!id) throw new Error('id is required');
 
     const { error } = await supabase
-      .from('user_food_logs') // ✅ correct table
+      .from('user_food_logs')
       .delete()
       .eq('id', id);
 
@@ -84,6 +79,27 @@ export const deleteFoodLog = async (id) => {
     return true;
   } catch (err) {
     console.error('Error deleting food log:', err);
+    throw err;
+  }
+};
+
+// -------------------- SENSITIVE OPERATIONS (Edge Functions) --------------------
+
+export const analyzeFood = async (text) => {
+  try {
+    const response = await axios.post(
+      ANALYZE_FOOD_FUNCTION,
+      { text },
+      {
+        headers: {
+          Authorization: `Bearer ${EDGE_KEY}`, // secure key only for server/Edge
+        },
+      }
+    );
+
+    return response.data;
+  } catch (err) {
+    console.error('Error analyzing food:', err.response || err);
     throw err;
   }
 };
